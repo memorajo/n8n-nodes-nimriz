@@ -44,7 +44,8 @@ export class NimrizTrigger implements INodeType {
 					{ name: 'Link Updated', value: 'link.updated' },
 					{ name: 'QR Code Scanned', value: 'link.qr_scanned' },
 				],
-				description: 'The Nimriz event to subscribe to',
+				description:
+					'The Nimriz event to subscribe to. Subscribing registers a webhook in your workspace, which requires n8n to be reachable at a public HTTPS URL — on a local n8n, start it with the --tunnel option.',
 			},
 		],
 	};

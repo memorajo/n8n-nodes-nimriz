@@ -44,7 +44,9 @@ export async function nimrizApiRequest(
  * Resolve the workspace account id for the authenticated API key. Used by the
  * Connection operations, whose API requires an explicit account id.
  */
-export async function getNimrizAccountId(this: IExecuteFunctions): Promise<string> {
+export async function getNimrizAccountId(
+	this: IExecuteFunctions | ILoadOptionsFunctions,
+): Promise<string> {
 	const whoami = (await nimrizApiRequest.call(this, 'GET', '/api/v1/whoami')) as IDataObject;
 	const accountId = whoami.account_id as string | undefined;
 	if (!accountId) {

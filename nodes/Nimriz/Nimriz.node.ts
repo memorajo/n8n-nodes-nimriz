@@ -171,8 +171,9 @@ export class Nimriz implements INodeType {
 				type: 'string',
 				default: '',
 				required: true,
+				placeholder: 'https://example.com/page',
 				displayOptions: { show: { resource: ['link'], operation: ['create'] } },
-				description: 'The destination URL the short link points to',
+				description: 'The destination URL the short link points to, including the https:// scheme',
 			},
 			{
 				displayName: 'Custom Slug',
@@ -203,9 +204,10 @@ export class Nimriz implements INodeType {
 				description: 'The HTTP redirect status code for the link',
 			},
 			{
-				displayName: 'Link ID',
+				displayName: 'Link Name or ID',
 				name: 'linkId',
-				type: 'string',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getLinks' },
 				default: '',
 				required: true,
 				displayOptions: {
@@ -221,7 +223,20 @@ export class Nimriz implements INodeType {
 						],
 					},
 				},
-				description: 'The ID of the link',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Find By',
+				name: 'findBy',
+				type: 'options',
+				default: 'shortUrl',
+				displayOptions: { show: { resource: ['link'], operation: ['find'] } },
+				options: [
+					{ name: 'Domain and Short Code', value: 'domainAndCode' },
+					{ name: 'Short URL', value: 'shortUrl' },
+				],
+				description: 'How to look up the link',
 			},
 			{
 				displayName: 'Short URL',
@@ -229,8 +244,28 @@ export class Nimriz implements INodeType {
 				type: 'string',
 				default: '',
 				required: true,
-				displayOptions: { show: { resource: ['link'], operation: ['find'] } },
+				displayOptions: { show: { resource: ['link'], operation: ['find'], findBy: ['shortUrl'] } },
 				description: 'The full short URL to look up, for example https://go.example.com/launch',
+			},
+			{
+				displayName: 'Domain Name or ID',
+				name: 'findDomainId',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getDomains' },
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['link'], operation: ['find'], findBy: ['domainAndCode'] } },
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Short Code',
+				name: 'findShortCode',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['link'], operation: ['find'], findBy: ['domainAndCode'] } },
+				description: 'The short code (slug) on the domain',
 			},
 			{
 				displayName: 'Limit',
@@ -309,15 +344,17 @@ export class Nimriz implements INodeType {
 
 			// Connection fields
 			{
-				displayName: 'Connection ID',
+				displayName: 'Connection Name or ID',
 				name: 'connectionId',
-				type: 'string',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getConnections' },
 				default: '',
 				required: true,
 				displayOptions: {
 					show: { resource: ['connection'], operation: ['get', 'update', 'delete', 'test'] },
 				},
-				description: 'The ID of the outbound connection',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
 				displayName: 'Name',
@@ -343,7 +380,8 @@ export class Nimriz implements INodeType {
 				type: 'json',
 				default: '{}',
 				displayOptions: { show: { resource: ['connection'], operation: ['create', 'update'] } },
-				description: 'Connection credentials as a JSON object',
+				description:
+					'Connection credentials as a JSON object. Keys depend on the connection type; for example, a generic_http connection requires an endpoint_url key.',
 			},
 			{
 				displayName: 'Property Mapping (JSON)',
@@ -389,6 +427,31 @@ export class Nimriz implements INodeType {
 					name: String(domain.domain_name ?? domain.id),
 					value: String(domain.id),
 				}));
+			},
+			async getLinks(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const data = (await nimrizApiRequest.call(this, 'GET', '/api/v1/links', {}, { limit: 100 })) as IDataObject;
+				const links = (data.links as IDataObject[]) ?? [];
+				return links.map((link) => {
+					const code = String(link.short_code ?? link.id);
+					const host = link.destination_host ? ` → ${String(link.destination_host)}` : '';
+					return { name: `${code}${host}`, value: String(link.id) };
+				});
+			},
+			async getConnections(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const accountId = await getNimrizAccountId.call(this);
+				const data = (await nimrizApiRequest.call(
+					this,
+					'GET',
+					'/api/integrations/destinations',
+					{},
+					{ account_id: accountId },
+				)) as IDataObject;
+				const destinations = (data.destinations as IDataObject[]) ?? [];
+				return destinations.map((destination) => {
+					const label = String(destination.name ?? destination.id);
+					const type = destination.type ? ` (${String(destination.type)})` : '';
+					return { name: `${label}${type}`, value: String(destination.id) };
+				});
 			},
 		},
 	};
@@ -436,13 +499,20 @@ export class Nimriz implements INodeType {
 						}
 						responseData = (await nimrizApiRequest.call(this, 'POST', '/api/shorten', body)) as IDataObject;
 					} else if (operation === 'find') {
-						const shortUrl = this.getNodeParameter('shortUrl', i) as string;
+						const findBy = this.getNodeParameter('findBy', i, 'shortUrl') as string;
+						const findQs: IDataObject = {};
+						if (findBy === 'domainAndCode') {
+							findQs.domain_id = this.getNodeParameter('findDomainId', i) as string;
+							findQs.short_code = this.getNodeParameter('findShortCode', i) as string;
+						} else {
+							findQs.short_url = this.getNodeParameter('shortUrl', i) as string;
+						}
 						responseData = (await nimrizApiRequest.call(
 							this,
 							'GET',
 							'/api/v1/links/find',
 							{},
-							{ short_url: shortUrl },
+							findQs,
 						)) as IDataObject;
 					} else if (operation === 'get') {
 						const linkId = this.getNodeParameter('linkId', i) as string;
