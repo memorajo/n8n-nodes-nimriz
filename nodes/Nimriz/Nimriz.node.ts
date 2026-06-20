@@ -1,7 +1,9 @@
 import type {
 	IDataObject,
 	IExecuteFunctions,
+	ILoadOptionsFunctions,
 	INodeExecutionData,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
@@ -153,13 +155,15 @@ export class Nimriz implements INodeType {
 
 			// Link fields
 			{
-				displayName: 'Domain ID',
+				displayName: 'Domain Name or ID',
 				name: 'domainId',
-				type: 'string',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getDomains' },
 				default: '',
 				required: true,
 				displayOptions: { show: { resource: ['link'], operation: ['create', 'checkSlug'] } },
-				description: 'The ID of the Nimriz domain for the link',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
 				displayName: 'Destination URL',
@@ -374,6 +378,19 @@ export class Nimriz implements INodeType {
 				description: 'Optional action ID to test. Defaults to the primary action.',
 			},
 		],
+	};
+
+	methods = {
+		loadOptions: {
+			async getDomains(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const data = (await nimrizApiRequest.call(this, 'GET', '/api/v1/domains')) as IDataObject;
+				const domains = (data.domains as IDataObject[]) ?? [];
+				return domains.map((domain) => ({
+					name: String(domain.domain_name ?? domain.id),
+					value: String(domain.id),
+				}));
+			},
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {

@@ -4,6 +4,7 @@ import type {
 	IHookFunctions,
 	IHttpRequestMethods,
 	IHttpRequestOptions,
+	ILoadOptionsFunctions,
 	JsonObject,
 } from 'n8n-workflow';
 import { NodeApiError, NodeOperationError } from 'n8n-workflow';
@@ -15,7 +16,7 @@ export const NIMRIZ_API_BASE = 'https://api.nimriz.com';
  * header) is injected by the `nimrizApi` credential's `authenticate` block.
  */
 export async function nimrizApiRequest(
-	this: IExecuteFunctions | IHookFunctions,
+	this: IExecuteFunctions | IHookFunctions | ILoadOptionsFunctions,
 	method: IHttpRequestMethods,
 	endpoint: string,
 	body: IDataObject = {},
