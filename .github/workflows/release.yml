@@ -1,0 +1,61 @@
+name: Release
+
+# Publishes n8n-nodes-nimriz to npm with a provenance statement.
+#
+# WHY THIS EXISTS: n8n Cloud verification REQUIRES community nodes to be
+# published from a GitHub Action that emits npm provenance (mandatory since
+# 2026-05-01). A local `npm publish` is accepted by npm but is rejected for
+# verification. See INT6-6.7 / INT6-6.8 in docs/trackers/integrations-pm-tracker.md.
+#
+# PLACEMENT: this file must live at the ROOT of the PUBLIC GitHub repository that
+# hosts this package (github.com/memorajo/n8n-nodes-nimriz). If you publish the
+# package from its own repo, this `packages/n8n-nodes-nimriz/` directory becomes
+# that repo's root and this path is already correct. If you keep it inside the
+# monorepo, move this workflow to the repo root and add a `working-directory`.
+#
+# PREREQUISITES (human, one-time):
+#   1. The hosting repo is PUBLIC and its URL matches package.json "repository.url"
+#      (set to github.com/memorajo/n8n-nodes-nimriz).
+#   2. Add an npm automation token as the `NPM_TOKEN` repo secret
+#      (Settings -> Secrets and variables -> Actions). Or configure npm Trusted
+#      Publishing (OIDC) for this repo and delete the NODE_AUTH_TOKEN line below.
+#   3. The npm account/org owns the `n8n-nodes-nimriz` name with 2FA configured.
+#
+# RELEASE: bump "version" in package.json, commit, then push a matching tag:
+#   git tag v1.0.0 && git push origin v1.0.0
+# (or run this workflow manually via "Run workflow").
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint (n8n community rules)
+        run: npm run lint
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
