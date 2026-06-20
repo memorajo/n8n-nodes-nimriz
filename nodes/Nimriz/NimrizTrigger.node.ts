@@ -1,0 +1,102 @@
+import type {
+	IDataObject,
+	IHookFunctions,
+	INodeType,
+	INodeTypeDescription,
+	IWebhookFunctions,
+	IWebhookResponseData,
+} from 'n8n-workflow';
+import { nimrizApiRequest } from './GenericFunctions';
+
+export class NimrizTrigger implements INodeType {
+	description: INodeTypeDescription = {
+		displayName: 'Nimriz Trigger',
+		name: 'nimrizTrigger',
+		icon: 'file:nimriz.svg',
+		group: ['trigger'],
+		version: 1,
+		subtitle: '={{$parameter["event"]}}',
+		description: 'Starts a workflow when a Nimriz event occurs',
+		defaults: { name: 'Nimriz Trigger' },
+		inputs: [],
+		outputs: ['main'],
+		credentials: [{ name: 'nimrizApi', required: true }],
+		webhooks: [
+			{
+				name: 'default',
+				httpMethod: 'POST',
+				responseMode: 'onReceived',
+				path: 'webhook',
+			},
+		],
+		properties: [
+			{
+				displayName: 'Event',
+				name: 'event',
+				type: 'options',
+				noDataExpression: true,
+				default: 'link.created',
+				options: [
+					{ name: 'Domain Verification Updated', value: 'domain.verification_updated' },
+					{ name: 'Link Clicked', value: 'link.clicked' },
+					{ name: 'Link Created', value: 'link.created' },
+					{ name: 'Link Takedown Updated', value: 'link.takedown_updated' },
+					{ name: 'Link Updated', value: 'link.updated' },
+					{ name: 'QR Code Scanned', value: 'link.qr_scanned' },
+				],
+				description: 'The Nimriz event to subscribe to',
+			},
+		],
+	};
+
+	webhookMethods = {
+		default: {
+			async checkExists(this: IHookFunctions): Promise<boolean> {
+				const webhookData = this.getWorkflowStaticData('node');
+				return webhookData.endpointId !== undefined;
+			},
+
+			async create(this: IHookFunctions): Promise<boolean> {
+				const webhookUrl = this.getNodeWebhookUrl('default') as string;
+				const event = this.getNodeParameter('event') as string;
+				const response = (await nimrizApiRequest.call(this, 'POST', '/api/webhooks/endpoints', {
+					endpoint_url: webhookUrl,
+					name: `n8n: ${event}`,
+					subscriptions: [event],
+				})) as IDataObject;
+				const endpoint = response.endpoint as IDataObject | undefined;
+				const endpointId = endpoint?.id;
+				if (endpointId === undefined) {
+					return false;
+				}
+				const webhookData = this.getWorkflowStaticData('node');
+				webhookData.endpointId = endpointId;
+				return true;
+			},
+
+			async delete(this: IHookFunctions): Promise<boolean> {
+				const webhookData = this.getWorkflowStaticData('node');
+				const endpointId = webhookData.endpointId as string | undefined;
+				if (endpointId === undefined) {
+					return true;
+				}
+				try {
+					await nimrizApiRequest.call(
+						this,
+						'DELETE',
+						`/api/webhooks/endpoints/${encodeURIComponent(endpointId)}`,
+					);
+				} catch {
+					return false;
+				}
+				delete webhookData.endpointId;
+				return true;
+			},
+		},
+	};
+
+	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
+		const body = this.getBodyData();
+		return { workflowData: [this.helpers.returnJsonArray(body as IDataObject)] };
+	}
+}
