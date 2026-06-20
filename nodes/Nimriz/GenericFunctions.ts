@@ -41,6 +41,34 @@ export async function nimrizApiRequest(
 }
 
 /**
+ * Like nimrizApiRequest, but does not throw on HTTP error statuses — returns the
+ * status code and parsed body so the caller can inspect error bodies. Used by
+ * check-slug, which reports availability in the body even on a 403 (taken/reserved).
+ */
+export async function nimrizApiRequestAllowError(
+	this: IExecuteFunctions,
+	method: IHttpRequestMethods,
+	endpoint: string,
+	body: IDataObject = {},
+): Promise<{ statusCode: number; body: IDataObject }> {
+	const options: IHttpRequestOptions = {
+		method,
+		url: `${NIMRIZ_API_BASE}${endpoint}`,
+		json: true,
+		returnFullResponse: true,
+		ignoreHttpStatusErrors: true,
+	};
+	if (Object.keys(body).length > 0) {
+		options.body = body;
+	}
+	const response = (await this.helpers.httpRequestWithAuthentication.call(this, 'nimrizApi', options)) as {
+		statusCode: number;
+		body: unknown;
+	};
+	return { statusCode: response.statusCode, body: (response.body ?? {}) as IDataObject };
+}
+
+/**
  * Resolve the workspace account id for the authenticated API key. Used by the
  * Connection operations, whose API requires an explicit account id.
  */

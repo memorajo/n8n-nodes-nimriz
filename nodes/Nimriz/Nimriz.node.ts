@@ -6,10 +6,15 @@ import type {
 	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
+	JsonObject,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeApiError, NodeOperationError } from 'n8n-workflow';
 
-import { getNimrizAccountId, nimrizApiRequest } from './GenericFunctions';
+import {
+	getNimrizAccountId,
+	nimrizApiRequest,
+	nimrizApiRequestAllowError,
+} from './GenericFunctions';
 
 export class Nimriz implements INodeType {
 	description: INodeTypeDescription = {
@@ -579,16 +584,21 @@ export class Nimriz implements INodeType {
 							body,
 						)) as IDataObject;
 					} else if (operation === 'checkSlug') {
-						const body: IDataObject = {
+						const result = await nimrizApiRequestAllowError.call(this, 'POST', '/api/check-slug', {
 							domain_id: this.getNodeParameter('domainId', i) as string,
 							slug: this.getNodeParameter('slug', i) as string,
-						};
-						responseData = (await nimrizApiRequest.call(
-							this,
-							'POST',
-							'/api/check-slug',
-							body,
-						)) as IDataObject;
+						});
+						// check-slug reports availability in the body even when the HTTP status is
+						// an error (e.g. 403 for a taken or reserved slug). Surface that as normal
+						// output so a workflow can branch on `available`, and only throw on genuine
+						// errors that carry no availability information.
+						if (typeof result.body.available === 'boolean') {
+							responseData = result.body;
+						} else if (result.statusCode >= 400) {
+							throw new NodeApiError(this.getNode(), result.body as JsonObject, { itemIndex: i });
+						} else {
+							responseData = result.body;
+						}
 					} else if (operation === 'getAnalytics') {
 						const linkId = this.getNodeParameter('linkId', i) as string;
 						const qs: IDataObject = {
