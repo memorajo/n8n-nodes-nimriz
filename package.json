@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-nimriz",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "n8n community node for Nimriz — short link management, click/scan event triggers, and outbound connection automation.",
 	"keywords": [
 		"n8n-community-node-package",

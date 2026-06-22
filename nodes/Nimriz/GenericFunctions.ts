@@ -46,7 +46,7 @@ export async function nimrizApiRequest(
  * check-slug, which reports availability in the body even on a 403 (taken/reserved).
  */
 export async function nimrizApiRequestAllowError(
-	this: IExecuteFunctions,
+	this: IExecuteFunctions | IHookFunctions,
 	method: IHttpRequestMethods,
 	endpoint: string,
 	body: IDataObject = {},

@@ -5,8 +5,11 @@ import type {
 	INodeTypeDescription,
 	IWebhookFunctions,
 	IWebhookResponseData,
+	JsonObject,
 } from 'n8n-workflow';
-import { nimrizApiRequest } from './GenericFunctions';
+import { NodeApiError } from 'n8n-workflow';
+
+import { nimrizApiRequest, nimrizApiRequestAllowError } from './GenericFunctions';
 
 export class NimrizTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -81,14 +84,18 @@ export class NimrizTrigger implements INodeType {
 				if (endpointId === undefined) {
 					return true;
 				}
-				try {
-					await nimrizApiRequest.call(
-						this,
-						'DELETE',
-						`/api/webhooks/endpoints/${encodeURIComponent(endpointId)}`,
-					);
-				} catch {
-					return false;
+				// Use the non-throwing request so an already-removed endpoint (404) is
+				// treated as a successful unsubscribe, while any other failure (auth,
+				// network, server) is surfaced as a NodeApiError instead of swallowed.
+				const result = await nimrizApiRequestAllowError.call(
+					this,
+					'DELETE',
+					`/api/webhooks/endpoints/${encodeURIComponent(endpointId)}`,
+				);
+				if (result.statusCode >= 300 && result.statusCode !== 404) {
+					throw new NodeApiError(this.getNode(), result.body as JsonObject, {
+						message: `Could not remove the Nimriz webhook subscription (HTTP ${result.statusCode}).`,
+					});
 				}
 				delete webhookData.endpointId;
 				return true;
