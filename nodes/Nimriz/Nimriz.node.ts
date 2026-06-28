@@ -28,8 +28,30 @@ export class Nimriz implements INodeType {
 		defaults: { name: 'Nimriz' },
 		inputs: ['main'],
 		outputs: ['main'],
-		credentials: [{ name: 'nimrizApi', required: true }],
+		credentials: [
+			{
+				name: 'nimrizApi',
+				required: true,
+				displayOptions: { show: { authentication: ['apiKey'] } },
+			},
+			{
+				name: 'nimrizOAuth2Api',
+				required: true,
+				displayOptions: { show: { authentication: ['oauth2'] } },
+			},
+		],
 		properties: [
+			{
+				displayName: 'Authentication',
+				name: 'authentication',
+				type: 'options',
+				noDataExpression: true,
+				default: 'apiKey',
+				options: [
+					{ name: 'API Key', value: 'apiKey' },
+					{ name: 'OAuth2', value: 'oauth2' },
+				],
+			},
 			{
 				displayName: 'Resource',
 				name: 'resource',

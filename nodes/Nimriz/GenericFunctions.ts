@@ -11,9 +11,25 @@ import { NodeApiError, NodeOperationError } from 'n8n-workflow';
 
 export const NIMRIZ_API_BASE = 'https://api.nimriz.com';
 
+type NimrizCredentialName = 'nimrizApi' | 'nimrizOAuth2Api';
+
+function nimrizCredentialName(context: IExecuteFunctions | IHookFunctions | ILoadOptionsFunctions): NimrizCredentialName {
+	const getter = (context as unknown as {
+		getNodeParameter?: (name: string, itemIndex?: number, fallbackValue?: unknown) => unknown;
+	}).getNodeParameter;
+	if (!getter) return 'nimrizApi';
+	try {
+		return getter.call(context, 'authentication', 0, 'apiKey') === 'oauth2'
+			? 'nimrizOAuth2Api'
+			: 'nimrizApi';
+	} catch {
+		return 'nimrizApi';
+	}
+}
+
 /**
  * Make an authenticated request to the Nimriz API. Authentication (the Bearer
- * header) is injected by the `nimrizApi` credential's `authenticate` block.
+ * header) is injected by the selected Nimriz credential.
  */
 export async function nimrizApiRequest(
 	this: IExecuteFunctions | IHookFunctions | ILoadOptionsFunctions,
@@ -34,7 +50,7 @@ export async function nimrizApiRequest(
 		options.qs = qs;
 	}
 	try {
-		return await this.helpers.httpRequestWithAuthentication.call(this, 'nimrizApi', options);
+		return await this.helpers.httpRequestWithAuthentication.call(this, nimrizCredentialName(this), options);
 	} catch (error) {
 		throw new NodeApiError(this.getNode(), error as JsonObject);
 	}
@@ -61,7 +77,7 @@ export async function nimrizApiRequestAllowError(
 	if (Object.keys(body).length > 0) {
 		options.body = body;
 	}
-	const response = (await this.helpers.httpRequestWithAuthentication.call(this, 'nimrizApi', options)) as {
+	const response = (await this.helpers.httpRequestWithAuthentication.call(this, nimrizCredentialName(this), options)) as {
 		statusCode: number;
 		body: unknown;
 	};
@@ -69,7 +85,7 @@ export async function nimrizApiRequestAllowError(
 }
 
 /**
- * Resolve the workspace account id for the authenticated API key. Used by the
+ * Resolve the workspace account id for the authenticated credential. Used by
  * Connection operations, whose API requires an explicit account id.
  */
 export async function getNimrizAccountId(
@@ -80,7 +96,7 @@ export async function getNimrizAccountId(
 	if (!accountId) {
 		throw new NodeOperationError(
 			this.getNode(),
-			'Could not resolve the workspace account from the provided API key.',
+			'Could not resolve the workspace account from the provided credential.',
 		);
 	}
 	return accountId;

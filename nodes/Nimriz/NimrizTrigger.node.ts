@@ -23,7 +23,18 @@ export class NimrizTrigger implements INodeType {
 		defaults: { name: 'Nimriz Trigger' },
 		inputs: [],
 		outputs: ['main'],
-		credentials: [{ name: 'nimrizApi', required: true }],
+		credentials: [
+			{
+				name: 'nimrizApi',
+				required: true,
+				displayOptions: { show: { authentication: ['apiKey'] } },
+			},
+			{
+				name: 'nimrizOAuth2Api',
+				required: true,
+				displayOptions: { show: { authentication: ['oauth2'] } },
+			},
+		],
 		webhooks: [
 			{
 				name: 'default',
@@ -33,6 +44,17 @@ export class NimrizTrigger implements INodeType {
 			},
 		],
 		properties: [
+			{
+				displayName: 'Authentication',
+				name: 'authentication',
+				type: 'options',
+				noDataExpression: true,
+				default: 'apiKey',
+				options: [
+					{ name: 'API Key', value: 'apiKey' },
+					{ name: 'OAuth2', value: 'oauth2' },
+				],
+			},
 			{
 				displayName: 'Event',
 				name: 'event',

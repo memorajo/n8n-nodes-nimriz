@@ -3,11 +3,12 @@
  * Production contract e2e for the Nimriz n8n node.
  *
  * This exercises the exact HTTP endpoint matrix that nodes/Nimriz/*.ts call,
- * against the live API, using a real workspace API key. It is the automated
+ * against the live API, using a real OAuth access token or workspace API key. It is the automated
  * companion to the manual "npm link into a local n8n" smoke test — it proves
  * every operation's path/method/body/response contract works end to end.
  *
  * Usage:
+ *   NIMRIZ_TEST_ACCESS_TOKEN=<oauth access token> node test/e2e.mjs
  *   NIMRIZ_TEST_API_KEY=<workspace api key> node test/e2e.mjs
  * Optional:
  *   NIMRIZ_TEST_DOMAIN_ID=<domain uuid>   (default: first domain from /api/v1/domains)
@@ -17,14 +18,14 @@
  */
 
 const API_BASE = process.env.NIMRIZ_API_BASE || 'https://api.nimriz.com';
-const API_KEY = process.env.NIMRIZ_TEST_API_KEY;
+const API_TOKEN = process.env.NIMRIZ_TEST_ACCESS_TOKEN || process.env.NIMRIZ_TEST_API_KEY;
 
-if (!API_KEY) {
-	console.error('NIMRIZ_TEST_API_KEY is required.');
+if (!API_TOKEN) {
+	console.error('NIMRIZ_TEST_ACCESS_TOKEN or NIMRIZ_TEST_API_KEY is required.');
 	process.exit(2);
 }
 
-const redact = (s) => String(s).split(API_KEY).join('***');
+const redact = (s) => String(s).split(API_TOKEN).join('***');
 let passed = 0;
 let failed = 0;
 const created = { linkId: null, endpointId: null, connectionId: null };
@@ -35,7 +36,7 @@ async function req(method, path, { body, qs } = {}) {
 	const res = await fetch(url, {
 		method,
 		headers: {
-			Authorization: `Bearer ${API_KEY}`,
+			Authorization: `Bearer ${API_TOKEN}`,
 			...(body ? { 'Content-Type': 'application/json' } : {}),
 		},
 		body: body ? JSON.stringify(body) : undefined,
